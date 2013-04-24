@@ -1,0 +1,12 @@
+.hgignore
+*.beam
+erl_crash.dump
+deps.mk
+ebin/rabbit.app
+include/rabbit_framing.hrl
+include/rabbit_framing_spec.hrl
+src/rabbit_framing_amqp*.erl
+src/*_usage.erl
+rabbit.plt
+basic.plt
+ebin/rabbit.(app|rel|boot|script)

@@ -5,6 +5,7 @@ syntax: glob
 *.patch
 erl_crash.dump
 deps.mk
+.gitignore
 
 syntax: regexp
 ^cover/
