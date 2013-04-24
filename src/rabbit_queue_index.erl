@@ -530,7 +530,7 @@ legacy_queues_dir() ->
 %%     filename:join(vhost_dir(VHost), "queues").
 
 queue_dir(QueueName = #resource{virtual_host = VHost, kind = queue}) ->
-    filename:join(vhost_dir(VHost), queue_name_to_dir_name(QueueName)).
+    filename:join([vhost_dir(VHost), "queues", queue_name_to_dir_name(QueueName)]).
 
 
 
