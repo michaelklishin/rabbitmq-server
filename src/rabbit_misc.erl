@@ -65,7 +65,7 @@
 -export([sequence_error/1]).
 -export([json_encode/1, json_decode/1, json_to_term/1, term_to_json/1]).
 -export([check_expiry/1]).
--export([base64url/1]).
+-export([base64url/1, md5binary/1]).
 -export([interval_operation/4]).
 -export([ensure_timer/4, stop_timer/2]).
 -export([get_parent/0]).
@@ -1034,6 +1034,10 @@ base64url(In) ->
                                   ($\=, Acc) -> Acc;
                                   (Chr, Acc) -> [Chr | Acc]
                               end, [], base64:encode_to_string(In))).
+
+md5binary(Term) ->
+    <<Num:128>> = erlang:md5(term_to_binary(Term)),
+    format("~.36B", [Num]).
 
 %% Ideally, you'd want Fun to run every IdealInterval. but you don't
 %% want it to take more than MaxRatio of IdealInterval. So if it takes
