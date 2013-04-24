@@ -384,8 +384,8 @@ recover(DurableQueues) ->
 
 all_queue_directory_names(Dir) ->
     case rabbit_file:list_dir(Dir) of
-        {ok, Entries}   ->
-            Pattern = filename:join([vhosts_dir(), "*", "*"]),
+        {ok, _Entries}   ->
+            Pattern = filename:join([Dir, "*", "*"]),
             lists:filter(fun rabbit_file:is_dir/1, filelib:wildcard(Pattern));
         {error, enoent} -> []
     end.
