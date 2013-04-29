@@ -23,7 +23,8 @@
 
 -export([scan/3]).
 
--export([add_queue_ttl/0]).
+%% upgrade steps
+-export([add_queue_ttl/0, separate_queue_indices_by_vhost/0]).
 
 -define(CLEAN_FILENAME, "clean.dot").
 
@@ -171,6 +172,7 @@
 %%----------------------------------------------------------------------------
 
 -rabbit_upgrade({add_queue_ttl, local, []}).
+%% -rabbit_upgrade({separate_queue_indices_by_vhost, local, []}).
 
 -ifdef(use_specs).
 
@@ -522,17 +524,8 @@ vhosts_dir() ->
 vhost_dir(VHost) ->
     filename:join(vhosts_dir(), vhost_name_to_dir_name(VHost)).
 
-%% pre per-vhost separation
-legacy_queues_dir() ->
-    filename:join(rabbit_mnesia:dir(), "queues").
-
-%% queues_dir(VHost) ->
-%%     filename:join(vhost_dir(VHost), "queues").
-
 queue_dir(QueueName = #resource{virtual_host = VHost, kind = queue}) ->
     filename:join([vhost_dir(VHost), "queues", queue_name_to_dir_name(QueueName)]).
-
-
 
 %%----------------------------------------------------------------------------
 %% msg store startup delta function
@@ -1075,6 +1068,57 @@ add_queue_ttl_segment(<<?REL_SEQ_ONLY_PREFIX:?REL_SEQ_ONLY_PREFIX_BITS,
      Rest};
 add_queue_ttl_segment(_) ->
     stop.
+
+%%----------------------------------------------------------------------------
+
+separate_queue_indices_by_vhost() ->
+    %% rabbit_log:info("About to log loaded apps...", []),
+    %% Apps = application:loaded_applications(),
+    %% lists:foreach(fun ({Name, _, _}) ->
+    %%                       rabbit_log:info("App ~p is loaded", [Name])
+    %%               end,
+    %%              Apps),
+    DurableQueues = rabbit_amqqueue:find_durable_queues(),
+    rabbit_log:info("Need to migrate ~p queues~n", [length(DurableQueues)]),
+    %% legacy dir path => new dir path
+    PathMapping   = [{legacy_queue_dir(Name),
+                      queue_dir(Name)} || #amqqueue{name = Name} <- DurableQueues],
+    PathMapping1  = lists:filter(fun ({LegacyPath, _}) ->
+                                         rabbit_file:is_dir(LegacyPath)
+                                 end,
+                                PathMapping),
+    lists:foreach(fun ({LegacyPath, NewPath}) ->
+                          rabbit_log:info("Migrating ~p => ~p~n", [LegacyPath, NewPath]),
+                          migrate_qi_directory(LegacyPath, NewPath)
+                  end,
+                 PathMapping1),
+    ok.
+
+
+%% pre per-vhost separation
+legacy_queues_dir() ->
+    filename:join(rabbit_mnesia:dir(), "queues").
+
+legacy_queue_dirs() ->
+    Pattern = filename:join([rabbit_mnesia:dir(), "queues", "*"]),
+    lists:filter(fun rabbit_file:is_dir/1, filelib:wildcard(Pattern)).
+
+legacy_queue_dir(Name = #resource{kind = queue}) ->
+    filename:join(legacy_queues_dir(), queue_name_to_dir_name(Name)).
+
+migrate_qi_directory(FromPath, ToPath) ->
+    case file:rename(FromPath, ToPath) of
+        ok              ->
+            ok;
+        {error, enoent} ->
+            %% already migrated
+            ok;
+        %% don't fail the upgrade but log an error
+        {error, Reason} ->
+            rabbit_log:error("Failed to move queue index from ~p to ~p, reason: ~p~n",
+                             [FromPath, ToPath, Reason]),
+            ok
+    end.
 
 %%----------------------------------------------------------------------------
 
