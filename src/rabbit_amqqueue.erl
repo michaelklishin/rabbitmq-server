@@ -33,6 +33,7 @@
 -export([update/2, store_queue/1, policy_changed/2]).
 -export([start_mirroring/1, stop_mirroring/1, sync_mirrors/1,
          cancel_sync_mirrors/1]).
+-export([find_durable_queues/0]).
 
 %% internal
 -export([internal_declare/2, internal_delete/1, run_backing_queue/3,
