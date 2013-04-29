@@ -172,7 +172,7 @@
 %%----------------------------------------------------------------------------
 
 -rabbit_upgrade({add_queue_ttl, local, []}).
-%% -rabbit_upgrade({separate_queue_indices_by_vhost, local, []}).
+-rabbit_upgrade({separate_queue_indices_by_vhost, local, []}).
 
 -ifdef(use_specs).
 
@@ -1072,12 +1072,6 @@ add_queue_ttl_segment(_) ->
 %%----------------------------------------------------------------------------
 
 separate_queue_indices_by_vhost() ->
-    %% rabbit_log:info("About to log loaded apps...", []),
-    %% Apps = application:loaded_applications(),
-    %% lists:foreach(fun ({Name, _, _}) ->
-    %%                       rabbit_log:info("App ~p is loaded", [Name])
-    %%               end,
-    %%              Apps),
     DurableQueues = rabbit_amqqueue:find_durable_queues(),
     rabbit_log:info("Need to migrate ~p queues~n", [length(DurableQueues)]),
     %% legacy dir path => new dir path
