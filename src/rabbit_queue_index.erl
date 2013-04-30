@@ -359,10 +359,10 @@ bounds(State = #qistate { segments = Segments }) ->
     {LowSeqId, NextSeqId, State}.
 
 recover(DurableQueues) ->
-    DurableDict = dict:from_list([ {queue_name_to_dir_name(Queue), Queue} ||
+    DurableDict = dict:from_list([ {rabbit_paths:queue_name_to_dir_name(Queue), Queue} ||
                                      Queue <- DurableQueues ]),
-    VhostsDir = vhosts_dir(),
-    QueueDirNames = all_queue_directory_names(VhostsDir),
+    VhostsDir = rabbit_paths:vhosts_dir(),
+    QueueDirNames = rabbit_paths:all_queue_directory_names(VhostsDir),
     DurableDirectories = sets:from_list(dict:fetch_keys(DurableDict)),
     {DurableQueueNames, DurableTerms} =
         lists:foldl(
@@ -384,13 +384,6 @@ recover(DurableQueues) ->
           end, {[], []}, QueueDirNames),
     {DurableTerms, {fun queue_index_walker/1, {start, DurableQueueNames}}}.
 
-all_queue_directory_names(Dir) ->
-    case rabbit_file:list_dir(Dir) of
-        {ok, _Entries}   ->
-            Pattern = filename:join([Dir, "*", "*"]),
-            lists:filter(fun rabbit_file:is_dir/1, filelib:wildcard(Pattern));
-        {error, enoent} -> []
-    end.
 
 
 %%----------------------------------------------------------------------------
@@ -398,7 +391,7 @@ all_queue_directory_names(Dir) ->
 %%----------------------------------------------------------------------------
 
 blank_state(QueueName) ->
-    blank_state_dir(queue_dir(QueueName)).
+    blank_state_dir(rabbit_paths:queue_dir(QueueName)).
 
 blank_state_dir(Dir) ->
     {ok, MaxJournal} =
@@ -509,23 +502,6 @@ recover_message(false,     _,    del,  RelSeq, Segment) ->
     add_to_journal(RelSeq, ack, Segment);
 recover_message(false,     _, no_del,  RelSeq, Segment) ->
     add_to_journal(RelSeq, ack, add_to_journal(RelSeq, del, Segment)).
-
-queue_name_to_dir_name(Name = #resource { kind = queue }) ->
-    rabbit_misc:md5binary(Name).
-
-vhost_name_to_dir_name(VHost) ->
-    rabbit_misc:md5binary(VHost).
-
-vhosts_dir() ->
-    %% adding  here makes it easier to tell queue directories that belong to the old layout
-    %% from vhost directories. MK.
-    filename:join(rabbit_mnesia:dir(), "vhosts").
-
-vhost_dir(VHost) ->
-    filename:join(vhosts_dir(), vhost_name_to_dir_name(VHost)).
-
-queue_dir(QueueName = #resource{virtual_host = VHost, kind = queue}) ->
-    filename:join([vhost_dir(VHost), "queues", queue_name_to_dir_name(QueueName)]).
 
 %%----------------------------------------------------------------------------
 %% msg store startup delta function
@@ -1075,8 +1051,8 @@ separate_queue_indices_by_vhost() ->
     DurableQueues = rabbit_amqqueue:find_durable_queues(),
     rabbit_log:info("Need to migrate ~p queues~n", [length(DurableQueues)]),
     %% legacy dir path => new dir path
-    PathMapping   = [{legacy_queue_dir(Name),
-                      queue_dir(Name)} || #amqqueue{name = Name} <- DurableQueues],
+    PathMapping   = [{rabbit_paths:legacy_queue_dir(Name),
+                      rabbit_paths:queue_dir(Name)} || #amqqueue{name = Name} <- DurableQueues],
     PathMapping1  = lists:filter(fun ({LegacyPath, _}) ->
                                          rabbit_file:is_dir(LegacyPath)
                                  end,
@@ -1088,17 +1064,6 @@ separate_queue_indices_by_vhost() ->
                  PathMapping1),
     ok.
 
-
-%% pre per-vhost separation
-legacy_queues_dir() ->
-    filename:join(rabbit_mnesia:dir(), "queues").
-
-legacy_queue_dirs() ->
-    Pattern = filename:join([rabbit_mnesia:dir(), "queues", "*"]),
-    lists:filter(fun rabbit_file:is_dir/1, filelib:wildcard(Pattern)).
-
-legacy_queue_dir(Name = #resource{kind = queue}) ->
-    filename:join(legacy_queues_dir(), queue_name_to_dir_name(Name)).
 
 migrate_qi_directory(FromPath, ToPath) ->
     case file:rename(FromPath, ToPath) of
@@ -1116,17 +1081,9 @@ migrate_qi_directory(FromPath, ToPath) ->
 
 %%----------------------------------------------------------------------------
 
-legacy_all_queue_directory_names(Dir) ->
-    case rabbit_file:list_dir(Dir) of
-        {ok, Entries}   -> [ Entry || Entry <- Entries,
-                                      rabbit_file:is_dir(
-                                        filename:join(Dir, Entry)) ];
-        {error, enoent} -> []
-    end.
-
 foreach_queue_index(Funs) ->
-    QueuesDir = legacy_queues_dir(),
-    QueueDirNames = legacy_all_queue_directory_names(QueuesDir),
+    QueuesDir = rabbit_paths:legacy_queues_dir(),
+    QueueDirNames = rabbit_paths:legacy_all_queue_directory_names(QueuesDir),
     {ok, Gatherer} = gatherer:start_link(),
     [begin
          ok = gatherer:fork(Gatherer),
